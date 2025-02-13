@@ -1,6 +1,6 @@
 # Bone Wind <!-- omit from toc -->
 
-Spawn models instantly from a list of known model paths without using the spawnmenu
+Add a bit of motion to your model
 
 ## Table of Contents <!-- omit from toc -->
 - [Bone Wind](#bone-wind)
