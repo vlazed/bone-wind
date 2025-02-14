@@ -23,6 +23,9 @@ This adds a Bone Wind tool and a system, which applies a "wind" force to a bone,
 - Additional settings to improve wind performance
 - Compatibility with Stop Motion Helper's Physics Recorder!
 
+> [!NOTE] 
+> To use this with Stop Motion Helper, make sure that you are on a timeline with nonphysical bones checked. For safety, you should bake the wind effects on a separate timeline to keep your timelines clean.
+
 ### Rational
 
 Animating ragdolls in GMod is tedious. Stop Motion Helper currently places keyframes for the pose of *all* nonphysical bones (individual bone timelines as of February 14, 2025 have not been developed yet). This makes certain elements hard to animate because of the time it takes to animate `n` number of bones on a model. 
