@@ -93,8 +93,8 @@ end
 -- Cache the sorted indices so we don't iterate two more times than necessary
 local sortedIndicesDictionary = {}
 
----@source https://subscription.packtpub.com/book/game-development/9781849515504/1/ch01lvl1sec14/extending-ipairs-for-use-in-sparse-arrays
 ---Helper function to iterate over an array with nonconsecutive integers ("holes" in the middle of the array, or zero or negative indices)
+---@source https://subscription.packtpub.com/book/game-development/9781849515504/1/ch01lvl1sec14/extending-ipairs-for-use-in-sparse-arrays
 ---@generic T
 ---@param t T[] Table to iterate over
 ---@param identifier string A unique key to store the table's sorted indices
@@ -133,7 +133,7 @@ end
 ---@type Set<string, PoseTree>
 local defaultPoseTrees = {}
 
----@source: https://github.com/NO-LOAFING/AnimpropOverhaul/blob/a3a6268a5d57655611a8b8ed43dcf43051ecd93a/lua/entities/prop_animated.lua#L3550
+---@source https://github.com/NO-LOAFING/AnimpropOverhaul/blob/a3a6268a5d57655611a8b8ed43dcf43051ecd93a/lua/entities/prop_animated.lua#L3550
 ---@param ent Entity Entity in reference pose
 ---@return PoseTree defaultPose Array consisting of a bones offsets from the entity, and offsets from its parent bones
 function helpers.getDefaultPoseTree(ent)
@@ -183,7 +183,7 @@ function helpers.getDefaultPoseTree(ent)
 end
 
 ---Calculate the bone offsets with respect to the parent
----Source: https://github.com/NO-LOAFING/AnimpropOverhaul/blob/a3a6268a5d57655611a8b8ed43dcf43051ecd93a/lua/entities/prop_animated.lua#L1889
+---@source https://github.com/NO-LOAFING/AnimpropOverhaul/blob/a3a6268a5d57655611a8b8ed43dcf43051ecd93a/lua/entities/prop_animated.lua#L1889
 ---@param entity Entity Entity to obtain bone information
 ---@param child integer Child bone index
 ---@param vector Vector

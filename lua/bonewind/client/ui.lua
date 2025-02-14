@@ -14,7 +14,7 @@ local vectorFromString = helpers.vectorFromString
 ---@param info EntityTree
 ---@param rootInfo EntityTree
 ---@return TreePanel_Node
-local function addNode(parent, entity, info, rootInfo)
+local function addEntityNode(parent, entity, info, rootInfo)
 	local node = parent:AddNode(getModelNameNice(entity))
 	---@cast node TreePanel_Node
 
@@ -64,7 +64,7 @@ local function hierarchyPanel(tree, nodeParent, root)
 			continue
 		end
 
-		local node = addNode(nodeParent, childEntity, child, root)
+		local node = addEntityNode(nodeParent, childEntity, child, root)
 
 		if #child.children > 0 then
 			hierarchyPanel(child.children, node, root)
@@ -120,7 +120,7 @@ local boneTypes = {
 ---@param childName string
 ---@param boneType integer
 ---@return BoneTreeNode
-local function addNode(parentNode, childName, boneType)
+local function addBoneNode(parentNode, childName, boneType)
 	local child = parentNode:AddNode(childName)
 	---@cast child BoneTreeNode
 	child:SetIcon(boneTypes[boneType])
@@ -159,11 +159,11 @@ local function populateBoneTree(node, entity)
 
 		local parent = entity:GetBoneParent(b)
 		if parent > -1 and parentSet[parent] then
-			parentSet[b] = addNode(parentSet[parent], entity:GetBoneName(b), boneType)
+			parentSet[b] = addBoneNode(parentSet[parent], entity:GetBoneName(b), boneType)
 			parentSet[b].bone = b
 			table.insert(nodeArray, parentSet[b])
 		else
-			parentSet[b] = addNode(node, entity:GetBoneName(b), boneType)
+			parentSet[b] = addBoneNode(node, entity:GetBoneName(b), boneType)
 			parentSet[b].bone = b
 			table.insert(nodeArray, parentSet[b])
 		end
