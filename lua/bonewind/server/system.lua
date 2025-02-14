@@ -58,6 +58,7 @@ net.Receive("bonewind_setbone_request", function(_, ply)
 			windable.bones:Add(bone)
 		elseif not checked and boneExists then
 			windable.bones:Remove(bone)
+			windable.entity:ManipulateBoneAngles(bone, angle_zero)
 		end
 
 		if #windable.bones.array == 0 then
