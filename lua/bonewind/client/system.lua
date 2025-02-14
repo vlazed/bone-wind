@@ -165,7 +165,10 @@ hook.Add("Think", "bonewind_system", function()
 		end
 
 		local boneInfo = applyForce(windable.entity, windable.bones.array, windable.wind)
-		if not shouldCheckReplication or (shouldCheckReplication:GetBool() and checkReplication(windable.entity)) then
+		if
+			not shouldCheckReplication:GetBool()
+			or (shouldCheckReplication:GetBool() and checkReplication(windable.entity))
+		then
 			replicate(entIndex, boneInfo)
 		end
 	end
