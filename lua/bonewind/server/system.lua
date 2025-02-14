@@ -70,8 +70,7 @@ end)
 ---@param bones table
 local function applyAngles(entity, bones)
 	for _, boneInfo in ipairs(bones) do
-		local oldAngle = entity:GetManipulateBoneAngles(boneInfo.bone)
-		entity:ManipulateBoneAngles(boneInfo.bone, LerpAngle(0.1, oldAngle, boneInfo.angle))
+		entity:ManipulateBoneAngles(boneInfo.bone, boneInfo.angle)
 	end
 end
 
@@ -105,6 +104,6 @@ net.Receive("bonewind_replicate", function(len)
 		boneInfo[i] = { bone = bone, angle = angle }
 	end
 
-	PrintTable(boneInfo)
+	-- PrintTable(boneInfo)
 	applyAngles(entity, boneInfo)
 end)

@@ -10,13 +10,17 @@
 ---@class PanelState
 ---@field selectedBone integer
 ---@field windable Entity
+---@field tree EntityTree
 
 ---@class PanelProps
 ---@field windable Entity
 
 ---@class PanelChildren
+---@field treePanel DTreeScroller
 ---@field boneTree DTreeScroller
----@field boneEnabled DCheckBox
+---@field boneEnabled DCheckBoxLabel
+---@field chainEnabled DCheckBoxLabel
+---@field childrenEnabled DCheckBoxLabel
 ---@field windDirection DModelRotater
 ---@field windZSlider DSlider
 ---@field windStrength DNumSlider
@@ -45,6 +49,7 @@
 ---@field previousCount integer
 
 ---@class BoneTreeNode: DTree_Node
+---@field GetChildNodes fun(self: BoneTreeNode): BoneTreeNode[]
 ---@field bone Bone
 
 ---@class BoneInfo
@@ -59,3 +64,20 @@
 ---@field parent Bone
 
 ---@alias PoseTree Pose[]
+
+---Wrapper for `DTree_Node`
+---@class TreePanel_Node: DTree_Node
+---@field Icon DImage
+---@field info EntityTree
+---@field GetChildNodes fun(self: TreePanel_Node): TreePanel_Node[]
+
+---Wrapper for `DTree`
+---@class TreePanel: DTreeScroller
+---@field ancestor TreePanel_Node
+---@field GetSelectedItem fun(self: TreePanel): TreePanel_Node
+
+---Main structure representing an entity's model tree
+---@class EntityTree
+---@field parent integer?
+---@field entity integer
+---@field children EntityTree[]

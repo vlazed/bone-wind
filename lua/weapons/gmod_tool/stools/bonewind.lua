@@ -61,11 +61,19 @@ TOOL:BuildConVarList()
 
 ---@module "bonewind.client.ui"
 local ui = include("bonewind/client/ui.lua")
+---@module "bonewind.shared.helpers"
+local helpers = include("bonewind/shared/helpers.lua")
+
+local vectorFromString = helpers.vectorFromString
 
 ---@type PanelState
 local panelState = {
 	selectedBone = -1,
 	windable = NULL,
+	tree = {
+		entity = NULL,
+		children = {},
+	},
 }
 
 ---@param cPanel ControlPanel|DForm
@@ -79,12 +87,25 @@ function TOOL.BuildCPanel(cPanel, windable)
 	ui.HookPanel(panelChildren, panelProps, panelState)
 end
 
+local windDirectionConVar = GetConVar("bonewind_direction")
+
+local red = Color(255, 0, 0)
 function TOOL:DrawHUD()
+	windDirectionConVar = windDirectionConVar or GetConVar("bonewind_direction")
+
 	local windable = panelState.windable
+	if not IsValid(windable) then
+		return
+	end
+
+	local vector = vectorFromString(windDirectionConVar:GetString())
+	debugoverlay.Line(windable:EyePos(), windable:EyePos() + vector * 10, 0.2, red, true)
+
 	local selectedBone = panelState.selectedBone
 
-	if selectedBone > 0 and IsValid(windable) then
-		local pos = windable:GetBonePosition(selectedBone):ToScreen()
+	local pos = windable:GetBonePosition(selectedBone)
+	if selectedBone > 0 and pos then
+		pos = pos:ToScreen()
 
 		surface.SetDrawColor(0, 255, 0)
 		surface.DrawRect(pos.x, pos.y, 10, 10)

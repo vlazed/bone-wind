@@ -70,7 +70,7 @@ end
 ---@param entIndex integer
 ---@param bone integer
 ---@param wind Wind
-function system.modBone(entIndex, bone, wind, direction, magnitude, frequency)
+function system.modBone(entIndex, bone, wind)
 	local windable = windableInfo.windables:Get(entIndex)
 	---@cast windable ClientWindable?
 
@@ -108,10 +108,13 @@ local function applyForce(entity, bones, windInfo)
 	for _, bone in ipairs(bones) do
 		-- Rotate bone to face direction of the force vector
 		local _, desiredAngle = helpers.getBoneOffsetsFromVector(entity, bone, direction)
+		local oldAngle = entity:GetManipulateBoneAngles(bone)
 
 		-- Apply sine on the desired angle to obtain final angle
 		desiredAngle[1] = desiredAngle[1] + magnitude * math.sin(frequency * RealTime())
 		desiredAngle[2] = desiredAngle[2] - magnitude * math.cos(frequency * RealTime())
+
+		desiredAngle = LerpAngle(0.5, oldAngle, desiredAngle)
 
 		table.insert(boneInfoArray, {
 			bone = bone,
@@ -146,7 +149,7 @@ local shouldCheckReplication = GetConVar("bonewind_checkreplication")
 
 -- The client is responsible for changing the bone angles with the wind force
 timer.Remove("bonewind_system")
-timer.Create("bonewind_system", 0.1, -1, function()
+timer.Create("bonewind_system", 0, -1, function()
 	shouldCheckReplication = shouldCheckReplication or GetConVar("bonewind_checkreplication")
 
 	local windables = windableInfo.windables

@@ -1,9 +1,100 @@
 local ui = {}
 
+---@module "bonewind.shared.helpers"
+local helpers = include("bonewind/shared/helpers.lua")
+
+local getValidModelChildren = helpers.getValidModelChildren
+local getModelName, getModelNameNice, getModelNodeIconPath =
+	helpers.getModelName, helpers.getModelNameNice, helpers.getModelNodeIconPath
+local vectorFromString = helpers.vectorFromString
+
+---Add hooks and model tree pointers
+---@param parent TreePanel_Node
 ---@param entity Entity
----@return string
-local function getNiceModelName(entity)
-	return string.NiceName(string.StripExtension(string.GetFileFromFilename(entity:GetModel())))
+---@param info EntityTree
+---@param rootInfo EntityTree
+---@return TreePanel_Node
+local function addNode(parent, entity, info, rootInfo)
+	local node = parent:AddNode(getModelNameNice(entity))
+	---@cast node TreePanel_Node
+
+	node:SetExpanded(true, true)
+
+	node.Icon:SetImage(getModelNodeIconPath(entity))
+	node.info = info
+
+	return node
+end
+
+---Construct the model tree
+---@param parent Entity
+---@return EntityTree
+local function entityHierarchy(parent)
+	local tree = {}
+	if not IsValid(parent) then
+		return tree
+	end
+
+	---@type Entity[]
+	local children = getValidModelChildren(parent)
+
+	for i, child in ipairs(children) do
+		if child.GetModel and child:GetModel() ~= "models/error.mdl" then
+			---@type EntityTree
+			local node = {
+				parent = parent:EntIndex(),
+				entity = child:EntIndex(),
+				children = entityHierarchy(child),
+			}
+			table.insert(tree, node)
+		end
+	end
+
+	return tree
+end
+
+---Construct the DTree from the entity model tree
+---@param tree EntityTree
+---@param nodeParent TreePanel_Node
+---@param root EntityTree
+local function hierarchyPanel(tree, nodeParent, root)
+	for _, child in ipairs(tree) do
+		local childEntity = Entity(child.entity)
+		if not IsValid(childEntity) or not childEntity.GetModel or not childEntity:GetModel() then
+			continue
+		end
+
+		local node = addNode(nodeParent, childEntity, child, root)
+
+		if #child.children > 0 then
+			hierarchyPanel(child.children, node, root)
+		end
+	end
+end
+
+---Construct the `entity`'s model tree
+---@param treePanel TreePanel
+---@param entity Entity
+---@returns EntityTree
+local function buildTree(treePanel, entity)
+	if IsValid(treePanel.ancestor) then
+		treePanel.ancestor:Remove()
+	end
+
+	---@type EntityTree
+	local hierarchy = {
+		entity = entity:EntIndex(),
+		children = entityHierarchy(entity),
+	}
+
+	---@type TreePanel_Node
+	---@diagnostic disable-next-line
+	treePanel.ancestor = addNode(treePanel, entity, hierarchy, hierarchy)
+	treePanel.ancestor.Icon:SetImage(getModelNodeIconPath(entity))
+	treePanel.ancestor.info = hierarchy
+	hierarchyPanel(hierarchy.children, treePanel.ancestor, hierarchy)
+
+	return hierarchy
 end
 
 ---Helper for DForm
@@ -103,6 +194,17 @@ local function getBoneTreeDepth(treeNodes)
 	return maxDepth
 end
 
+---@param boneTree DTreeScroller
+---@param windable Entity
+local function refreshBoneTree(boneTree, windable)
+	boneTree:Clear()
+
+	local nodeArray = populateBoneTree(boneTree, windable)
+	local depth = getBoneTreeDepth(nodeArray)
+	local width = depth * 17
+	boneTree:UpdateWidth(width + 64 + 32 + 128)
+end
+
 ---@param cPanel DForm|ControlPanel
 ---@param panelProps PanelProps
 ---@param panelState PanelState
@@ -112,6 +214,20 @@ function ui.ConstructPanel(cPanel, panelProps, panelState)
 
 	cPanel:Help("#tool.bonewind.general")
 
+	local treeForm = makeCategory(cPanel, "Entity Hierarchy", "DForm")
+	if IsValid(windable) then
+		treeForm:Help("#tool.bonewind.tree")
+	end
+	treeForm:Help(IsValid(windable) and "Entity hierarchy for " .. getModelName(windable) or "No entity selected")
+	local treePanel = vgui.Create("DTreeScroller", treeForm)
+	---@cast treePanel TreePanel
+	if IsValid(windable) then
+		panelState.tree = buildTree(treePanel, windable)
+	end
+	treeForm:AddItem(treePanel)
+	treePanel:Dock(TOP)
+	treePanel:SetSize(treeForm:GetWide(), 125)
+
 	local boneSettings = makeCategory(cPanel, "Bone Tree", "DForm")
 
 	local boneTree = vgui.Create("DTreeScroller", cPanel)
@@ -120,13 +236,20 @@ function ui.ConstructPanel(cPanel, panelProps, panelState)
 	boneTree:SizeTo(-1, 250, 0)
 
 	if IsValid(windable) then
-		local nodeArray = populateBoneTree(boneTree, windable)
-		local depth = getBoneTreeDepth(nodeArray)
-		local width = depth * 17
-		boneTree:UpdateWidth(width + 64 + 32 + 128)
+		refreshBoneTree(boneTree, windable)
 	end
 
 	local boneEnabled = boneSettings:CheckBox("#tool.bonewind.bone.enabled", "")
+	local chainEnabled = boneSettings:CheckBox("#tool.bonewind.chain.enabled", "")
+
+	boneSettings:AddItem(boneEnabled, chainEnabled)
+	chainEnabled:Dock(RIGHT)
+	chainEnabled:SetSize(chainEnabled:GetWide() + 25, chainEnabled:GetTall())
+	local childrenEnabled = boneSettings:CheckBox("#tool.bonewind.children.enabled", "")
+
+	boneEnabled:SetTooltip("#tool.bonewind.bone.enabled.tooltip")
+	chainEnabled:SetTooltip("#tool.bonewind.chain.enabled.tooltip")
+	childrenEnabled:SetTooltip("#tool.bonewind.children.enabled.tooltip")
 
 	local windSettings = makeCategory(cPanel, "Wind Settings", "DForm")
 	windSettings:Help("Set the direction of the pointer to set the wind direction")
@@ -148,24 +271,16 @@ function ui.ConstructPanel(cPanel, panelProps, panelState)
 	windFrequency:Dock(TOP)
 
 	return {
+		treePanel = treePanel,
 		boneEnabled = boneEnabled,
+		chainEnabled = chainEnabled,
+		childrenEnabled = childrenEnabled,
 		boneTree = boneTree,
 		windDirection = windDirection,
 		windZSlider = windZSlider,
 		windStrength = windStrength,
 		windFrequency = windFrequency,
 	}
-end
-
----@param str string
----@param component integer?
----@returns Vector|number
-local function vectorFromString(str, component)
-	local direction = string.Split(str, " ")
-	if component and component > 0 and component < 4 then
-		return tonumber(direction[component])
-	end
-	return Vector(tonumber(direction[1]), tonumber(direction[2]), tonumber(direction[3]))
 end
 
 local windDirectionConVar = GetConVar("bonewind_direction")
@@ -176,16 +291,21 @@ local windDirectionConVar = GetConVar("bonewind_direction")
 function ui.HookPanel(panelChildren, panelProps, panelState)
 	windDirectionConVar = windDirectionConVar or GetConVar("bonewind_direction")
 
+	local treePanel = panelChildren.treePanel
 	local boneTree = panelChildren.boneTree
 	local boneEnabled = panelChildren.boneEnabled
+	local chainEnabled = panelChildren.chainEnabled
+	local childrenEnabled = panelChildren.childrenEnabled
 	local windDirection = panelChildren.windDirection
 	local windZSlider = panelChildren.windZSlider
 	local windStrength = panelChildren.windStrength
 	local windFrequency = panelChildren.windFrequency
 
-	local windable = panelProps.windable
+	local windable = panelState.windable
 	local player = LocalPlayer()
 	boneEnabled:SetEnabled(false)
+	childrenEnabled:SetEnabled(false)
+	chainEnabled:SetEnabled(false)
 
 	---@param checked boolean
 	local function toggleWindSettings(checked)
@@ -199,31 +319,89 @@ function ui.HookPanel(panelChildren, panelProps, panelState)
 
 	toggleWindSettings(false)
 
+	---@param node TreePanel_Node
+	function treePanel:OnNodeSelected(node)
+		windable = Entity(node.info.entity)
+		boneEnabled:SetEnabled(false)
+		childrenEnabled:SetEnabled(false)
+		chainEnabled:SetEnabled(false)
+
+		refreshBoneTree(boneTree, windable)
+	end
+
 	---@param node BoneTreeNode
 	function boneTree:OnNodeSelected(node)
 		local isBoneEnabled = BoneWind.System.isWindedBone(windable:EntIndex(), node.bone)
 
 		boneEnabled:SetEnabled(true)
+		chainEnabled:SetEnabled(true)
+		childrenEnabled:SetEnabled(true)
 		boneEnabled:SetText(Format("%s %s", language.GetPhrase("#tool.bonewind.bone.enabled"), node:GetText()))
 
 		boneEnabled:SetChecked(isBoneEnabled)
+		chainEnabled:SetChecked(isBoneEnabled)
+		childrenEnabled:SetChecked(isBoneEnabled)
 		toggleWindSettings(isBoneEnabled)
 		panelState.selectedBone = node.bone
 	end
 
-	function boneEnabled:OnChange(checked)
-		local selectedNode = boneTree:GetSelectedItem()
+	---@param node BoneTreeNode
+	---@param bones BoneArray
+	---@returns BoneArray
+	local function bonesFromChildren(node, bones, recursive)
+		for _, child in ipairs(node:GetChildNodes()) do
+			table.insert(bones, child.bone)
+			if recursive then
+				bones = bonesFromChildren(child, bones, recursive)
+			end
+		end
+
+		return bones
+	end
+
+	---@param bones BoneArray
+	---@param checked boolean
+	local function addBonesToSystem(bones, checked)
 		toggleWindSettings(checked)
 
-		---@cast selectedNode BoneTreeNode
 		local direction = vectorFromString(windDirectionConVar:GetString())
 		---@cast direction Vector
 
-		BoneWind.System.setBone(windable:EntIndex(), selectedNode.bone, checked, {
-			direction = direction,
-			magnitude = windStrength:GetValue(),
-			frequency = windFrequency:GetValue(),
-		})
+		for _, bone in ipairs(bones) do
+			BoneWind.System.setBone(windable:EntIndex(), bone, checked, {
+				direction = direction,
+				magnitude = windStrength:GetValue(),
+				frequency = windFrequency:GetValue(),
+			})
+		end
+	end
+
+	function childrenEnabled:OnChange(checked)
+		chainEnabled:SetChecked(checked)
+
+		local selectedNode = boneTree:GetSelectedItem()
+		---@cast selectedNode BoneTreeNode
+
+		addBonesToSystem(bonesFromChildren(selectedNode, {}, false), checked)
+	end
+
+	function chainEnabled:OnChange(checked)
+		childrenEnabled:SetChecked(checked)
+
+		local selectedNode = boneTree:GetSelectedItem()
+		---@cast selectedNode BoneTreeNode
+
+		addBonesToSystem(bonesFromChildren(selectedNode, {}, true), checked)
+	end
+
+	function boneEnabled:OnChange(checked)
+		chainEnabled:SetChecked(checked)
+		childrenEnabled:SetChecked(checked)
+
+		local selectedNode = boneTree:GetSelectedItem()
+		---@cast selectedNode BoneTreeNode
+
+		addBonesToSystem({ selectedNode.bone }, checked)
 	end
 
 	local initialLook = vectorFromString(windDirectionConVar:GetString())
@@ -253,6 +431,10 @@ function ui.HookPanel(panelChildren, panelProps, panelState)
 	end
 
 	function windStrength:OnValueChanged()
+		boneChanged()
+	end
+
+	function windFrequency:OnValueChanged(val)
 		boneChanged()
 	end
 
@@ -314,14 +496,9 @@ function ui.HookPanel(panelChildren, panelProps, panelState)
 		boneChanged()
 	end
 
-	local red = Color(255, 0, 0)
 	function windDirection:Think()
 		local vector = vectorFromString(windDirectionConVar:GetString())
 		---@cast vector Vector
-
-		if IsValid(windable) then
-			debugoverlay.Line(windable:EyePos(), windable:EyePos() + vector * 10, 0.2, red, true)
-		end
 
 		self:GetEntity():SetAngles(vector:Angle())
 		self:SetCamPos(self.OrbitPoint - player:EyeAngles():Forward() * self.OrbitDistance)
