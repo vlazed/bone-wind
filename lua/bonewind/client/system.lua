@@ -148,8 +148,8 @@ end
 local shouldCheckReplication = GetConVar("bonewind_checkreplication")
 
 -- The client is responsible for changing the bone angles with the wind force
-timer.Remove("bonewind_system")
-timer.Create("bonewind_system", 0, -1, function()
+hook.Remove("Think", "bonewind_system")
+hook.Add("Think", "bonewind_system", function()
 	shouldCheckReplication = shouldCheckReplication or GetConVar("bonewind_checkreplication")
 
 	local windables = windableInfo.windables
@@ -171,6 +171,5 @@ timer.Create("bonewind_system", 0, -1, function()
 	end
 	windableInfo.previousCount = count
 end)
-timer.Start("bonewind_system")
 
 BoneWind.System = system
