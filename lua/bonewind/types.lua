@@ -25,6 +25,7 @@
 ---@field windZSlider DSlider
 ---@field windStrength DNumSlider
 ---@field windFrequency DNumSlider
+---@field updateInterval DNumSlider
 
 ---@class ServerWindable A struct that stores the entity to modify and its bones to affect by the wind system
 ---@field entity Entity

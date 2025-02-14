@@ -142,37 +142,49 @@ end
 ---Useful to ensure the client doesn't send what it can't see
 ---@param entity Entity
 local function checkReplication(entity)
+	-- TODO: Implement replication rules
 	return true
 end
 
-local shouldCheckReplication = GetConVar("bonewind_checkreplication")
+do
+	local shouldCheckReplication = GetConVar("bonewind_checkreplication")
+	local updateInterval = GetConVar("bonewind_updateinterval")
+	local lastThink = 0
 
--- The client is responsible for changing the bone angles with the wind force
-hook.Remove("Think", "bonewind_system")
-hook.Add("Think", "bonewind_system", function()
-	shouldCheckReplication = shouldCheckReplication or GetConVar("bonewind_checkreplication")
+	-- The client is responsible for changing the bone angles with the wind force
+	hook.Remove("Think", "bonewind_system")
+	hook.Add("Think", "bonewind_system", function()
+		shouldCheckReplication = shouldCheckReplication or GetConVar("bonewind_checkreplication")
+		updateInterval = updateInterval or GetConVar("bonewind_updateinterval")
 
-	local windables = windableInfo.windables
-	local count = #windables.array
-	for entIndex, _ in ipairs_sparse(windables.set, "bonewind_system", count ~= windableInfo.previousCount) do
-		local windable = windables:Get(entIndex)
-		---@cast windable ClientWindable
-
-		-- Cleanup invalid entities
-		if not IsValid(windable.entity) then
-			windableInfo.windables:Remove(entIndex)
-			continue
+		local now = CurTime()
+		if now - lastThink < updateInterval:GetFloat() / 1000 then
+			return
 		end
+		lastThink = now
 
-		local boneInfo = applyForce(windable.entity, windable.bones.array, windable.wind)
-		if
-			not shouldCheckReplication:GetBool()
-			or (shouldCheckReplication:GetBool() and checkReplication(windable.entity))
-		then
-			replicate(entIndex, boneInfo)
+		local windables = windableInfo.windables
+		local count = #windables.array
+		for entIndex, _ in ipairs_sparse(windables.set, "bonewind_system", count ~= windableInfo.previousCount) do
+			local windable = windables:Get(entIndex)
+			---@cast windable ClientWindable
+
+			-- Cleanup invalid entities
+			if not IsValid(windable.entity) then
+				windableInfo.windables:Remove(entIndex)
+				continue
+			end
+
+			local boneInfo = applyForce(windable.entity, windable.bones.array, windable.wind)
+			if
+				not shouldCheckReplication:GetBool()
+				or (shouldCheckReplication:GetBool() and checkReplication(windable.entity))
+			then
+				replicate(entIndex, boneInfo)
+			end
 		end
-	end
-	windableInfo.previousCount = count
-end)
+		windableInfo.previousCount = count
+	end)
+end
 
 BoneWind.System = system

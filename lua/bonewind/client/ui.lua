@@ -270,6 +270,12 @@ function ui.ConstructPanel(cPanel, panelProps, panelState)
 	local windFrequency = windSettings:NumSlider("#tool.bonewind.wind.frequency", "bonewind_frequency", 0, 1000)
 	windFrequency:Dock(TOP)
 
+	local replicationSettings = makeCategory(cPanel, "Replication Settings", "DForm")
+	replicationSettings:Help("#tool.bonewind.replication.warning")
+	local updateInterval =
+		replicationSettings:NumSlider("#tool.bonewind.replication.interval", "bonewind_updateinterval", 0, 1000)
+	updateInterval:SetTooltip("tool.bonewind.replication.interval.tooltip")
+
 	return {
 		treePanel = treePanel,
 		boneEnabled = boneEnabled,
@@ -280,6 +286,7 @@ function ui.ConstructPanel(cPanel, panelProps, panelState)
 		windZSlider = windZSlider,
 		windStrength = windStrength,
 		windFrequency = windFrequency,
+		updateInterval = updateInterval,
 	}
 end
 

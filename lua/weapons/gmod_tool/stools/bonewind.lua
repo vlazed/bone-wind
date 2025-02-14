@@ -7,6 +7,7 @@ TOOL.ClientConVar["direction"] = "0 1 0"
 TOOL.ClientConVar["strength"] = "1"
 TOOL.ClientConVar["frequency"] = "100"
 TOOL.ClientConVar["checkreplication"] = "0"
+TOOL.ClientConVar["updateinterval"] = "10"
 
 local lastWindable = NULL
 local lastValidWindable = false
