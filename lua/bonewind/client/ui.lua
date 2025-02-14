@@ -89,7 +89,7 @@ local function buildTree(treePanel, entity)
 
 	---@type TreePanel_Node
 	---@diagnostic disable-next-line
-	treePanel.ancestor = addNode(treePanel, entity, hierarchy, hierarchy)
+	treePanel.ancestor = addEntityNode(treePanel, entity, hierarchy, hierarchy)
 	treePanel.ancestor.Icon:SetImage(getModelNodeIconPath(entity))
 	treePanel.ancestor.info = hierarchy
 	hierarchyPanel(hierarchy.children, treePanel.ancestor, hierarchy)
