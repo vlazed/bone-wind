@@ -51,10 +51,10 @@ end
 ---
 -- Set the values of the quaternion.
 ---@param w number|Quaternion The 'w' component of the quaternion or a Quaternion object to copy.
----@param x number The 'x' component of the quaternion.
----@param y number The 'y' component of the quaternion.
----@param z number The 'z' component of the quaternion.
----@return Quaternion The modified quaternion.
+---@param x number? The 'x' component of the quaternion.
+---@param y number? The 'y' component of the quaternion.
+---@param z number? The 'z' component of the quaternion.
+---@return Quaternion q The modified quaternion.
 --
 function QUATERNION:Set(w, x, y, z)
 	if IsQuaternion(w) then
@@ -87,6 +87,13 @@ function QUATERNION:SetAngle(ang)
 		cosr * sinp * cosy + sinr * cosp * siny,
 		cosr * cosp * siny - sinr * sinp * cosy
 	)
+end
+
+---@param angle Angle
+---@return Quaternion
+local function FromAngle(angle)
+	local q = Quaternion(1, 0, 0, 0)
+	return q:SetAngle(angle)
 end
 
 ---
@@ -559,4 +566,7 @@ function QUATERNION:__tostring()
 	return string.format("%f %f %f %f", self:Unpack())
 end
 
-return Quaternion
+return {
+	new = Quaternion,
+	fromAngle = FromAngle,
+}

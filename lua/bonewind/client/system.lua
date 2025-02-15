@@ -4,6 +4,9 @@ local helpers = include("bonewind/shared/helpers.lua")
 ---@module "bonewind.shared.setarray"
 local setArray = include("bonewind/shared/setarray.lua")
 
+---@module "bonewind.shared.quaternion"
+local quaternion = include("bonewind/shared/quaternion.lua")
+
 local ipairs_sparse = helpers.ipairs_sparse
 
 ---@type ClientWindableInfo
@@ -168,21 +171,19 @@ local function applyForce(entity, bones, windInfo, settings)
 	local magnitude = windInfo.magnitude
 	for _, bone in ipairs(bones) do
 		-- Rotate bone to face direction of the force vector
-		local _, desiredAngle = helpers.getBoneOffsetsFromVector(entity, bone, direction)
-		local oldAngle = entity:GetManipulateBoneAngles(bone)
-		local angleOffset = settings.angles[bone] or angle_zero
+		local qDesiredAngle = quaternion.fromAngle(helpers.getBoneOffsetsFromVector(entity, bone, direction))
+		local qOldAngle = quaternion.fromAngle(entity:GetManipulateBoneAngles(bone))
+		local qWindPitch = quaternion.fromAngle(Angle(magnitude * math.sin(frequency * RealTime()), 0, 0))
+		local qWindYaw = quaternion.fromAngle(Angle(0, -magnitude * math.cos(frequency * RealTime()), 0))
+		local qAngleOffset = quaternion.fromAngle(settings.angles[bone] or angle_zero)
 
-		-- Apply sine on the desired angle to obtain final angle
-		desiredAngle[1] = desiredAngle[1] + magnitude * math.sin(frequency * RealTime())
-		desiredAngle[2] = desiredAngle[2] - magnitude * math.cos(frequency * RealTime())
-
-		desiredAngle = LerpAngle(0.5, oldAngle, desiredAngle)
-
-		desiredAngle:Add(angleOffset)
+		qDesiredAngle:Mul(qAngleOffset)
+		qDesiredAngle:Set(qWindPitch:Mul(qDesiredAngle:Mul(qWindYaw)))
+		qDesiredAngle:Set(qOldAngle:SLerp(qDesiredAngle, 0.5))
 
 		table.insert(boneInfoArray, {
 			bone = bone,
-			angle = desiredAngle,
+			angle = qDesiredAngle:Angle(),
 		})
 	end
 

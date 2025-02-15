@@ -187,7 +187,6 @@ end
 ---@param entity Entity Entity to obtain bone information
 ---@param child integer Child bone index
 ---@param vector Vector
----@return Vector positionOffset Position of child bone with respect to parent bone
 ---@return Angle angleOffset Angle of child bone with respect to parent bone
 function helpers.getBoneOffsetsFromVector(entity, child, vector)
 	local defaultBonePose = helpers.getDefaultPoseTree(entity)
@@ -199,12 +198,15 @@ function helpers.getBoneOffsetsFromVector(entity, child, vector)
 	local pMatrix = entity:GetBoneMatrix(parent)
 
 	if not cMatrix or not pMatrix or not defaultBonePose or #defaultBonePose == 0 then
-		return vector_origin * 1, angle_zero * 1
+		return angle_zero * 1
 	end
 
-	local fPos, fAng =
-		WorldToLocal(cMatrix:GetTranslation() + vector, vector:Angle(), pMatrix:GetTranslation(), pMatrix:GetAngles())
-	local dPos = fPos - defaultBonePose[child].lPos
+	local fPos, fAng = WorldToLocal(
+		cMatrix:GetTranslation(),
+		vector:AngleEx(pMatrix:GetAngles():Up()),
+		pMatrix:GetTranslation(),
+		pMatrix:GetAngles()
+	)
 
 	local m = Matrix()
 	m:Translate(defaultBonePose[parent].oPos)
@@ -214,7 +216,7 @@ function helpers.getBoneOffsetsFromVector(entity, child, vector)
 	local _, dAng =
 		WorldToLocal(m:GetTranslation(), m:GetAngles(), defaultBonePose[child].oPos, defaultBonePose[child].oAng)
 
-	return dPos, dAng
+	return dAng
 end
 
 return helpers
