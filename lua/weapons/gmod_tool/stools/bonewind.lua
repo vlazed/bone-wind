@@ -28,7 +28,7 @@ end
 
 ---@param newWindable Entity
 function TOOL:SetWindable(newWindable)
-	self:GetWeapon():SetNW2Entity("bonewind_entity", newWindable)
+	self:GetWeapon():SetNW2Entity("bonewind_entity", IsValid(newWindable) and newWindable or NULL)
 end
 
 ---@return Entity windable

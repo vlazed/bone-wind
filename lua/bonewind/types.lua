@@ -15,6 +15,14 @@
 ---@class PanelProps
 ---@field windable Entity
 
+---@class AngleSlider: DNumSlider
+---@field ignore boolean
+
+---@class EulerAngleSliders
+---@field pitch AngleSlider
+---@field yaw AngleSlider
+---@field roll AngleSlider
+
 ---@class PanelChildren
 ---@field treePanel DTreeScroller
 ---@field boneTree DTreeScroller
@@ -26,6 +34,8 @@
 ---@field windStrength DNumSlider
 ---@field windFrequency DNumSlider
 ---@field updateInterval DNumSlider
+---@field angles EulerAngleSliders
+---@field bonePresets DPresetSaver
 
 ---@class ServerWindable A struct that stores the entity to modify and its bones to affect by the wind system
 ---@field entity Entity
@@ -36,13 +46,17 @@
 ---@field magnitude number
 ---@field frequency number
 
+---@class WindableSettings
+---@field angles Set<Bone, Angle>
+
 ---@class ClientWindable A struct that stores the entity to modify and its bones to affect by the wind system
 ---@field entity Entity
 ---@field bones SetArray
+---@field settings WindableSettings
 ---@field wind Wind
 
 ---@class ClientWindableInfo
----@field windables SetArray<ClientWindable>
+---@field windables ClientWindable[]
 ---@field previousCount integer
 
 ---@class ServerWindableInfo
@@ -82,3 +96,12 @@
 ---@field parent integer?
 ---@field entity integer
 ---@field children EntityTree[]
+
+---@class BonePresetField
+---@field boneName string
+---@field pitch number
+---@field yaw number
+---@field roll number
+
+---@class BonePreset
+---@field presets BonePresetField[]

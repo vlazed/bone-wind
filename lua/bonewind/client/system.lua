@@ -8,8 +8,9 @@ local ipairs_sparse = helpers.ipairs_sparse
 
 ---@type ClientWindableInfo
 local windableInfo = {
-	windables = setArray({}),
+	windables = {},
 	previousCount = 0,
+	count = 0,
 }
 
 local system = {}
@@ -17,32 +18,45 @@ local system = {}
 ---Make a table to store the entity, its bones, and other fields,
 ---rather than storing it in the entity itself to avoid Entity.__index calls
 ---@param entity Entity
----@param wind Wind
+---@param wind Wind?
 ---@return ClientWindable
 local function constructWindable(entity, wind)
 	return {
 		entity = entity,
 		bones = setArray({}),
-		wind = wind,
+		wind = wind or {
+			direction = vector_origin,
+			frequency = 0,
+			magnitude = 0,
+		},
+		settings = {
+			angles = {},
+		},
 	}
 end
 
+---@param entIndex integer
+local function removeWindable(entIndex)
+	windableInfo.windables[entIndex] = nil
+	windableInfo.count = windableInfo.count - 1
+end
+
 ---@param entIndex number
----@param wind Wind
+---@param wind Wind?
 ---@return ClientWindable
 local function addWindable(entIndex, wind)
 	local windable = constructWindable(Entity(entIndex), wind)
-	windableInfo.windables:Add(windable, entIndex)
+	windableInfo.windables[entIndex] = windable
+	windableInfo.count = windableInfo.count + 1
 	return windable
 end
 
 ---@param entIndex integer
 ---@param bone integer
 ---@param checked boolean
----@param wind Wind
+---@param wind Wind?
 function system.setBone(entIndex, bone, checked, wind)
-	local windable = windableInfo.windables:Get(entIndex)
-	---@cast windable ClientWindable?
+	local windable = windableInfo.windables[entIndex]
 	if not windable and IsValid(Entity(entIndex)) then
 		windable = addWindable(entIndex, wind)
 	end
@@ -56,7 +70,7 @@ function system.setBone(entIndex, bone, checked, wind)
 		end
 
 		if #windable.bones.array == 0 then
-			windableInfo.windables:Remove(entIndex)
+			removeWindable(entIndex)
 		end
 	end
 
@@ -70,12 +84,59 @@ end
 ---@param entIndex integer
 ---@param bone integer
 ---@param wind Wind
-function system.modBone(entIndex, bone, wind)
-	local windable = windableInfo.windables:Get(entIndex)
-	---@cast windable ClientWindable?
+function system.setWindForBone(entIndex, bone, wind)
+	local windable = windableInfo.windables[entIndex]
 
 	if windable and windable.bones:Get(bone) then
 		windable.wind = wind
+	end
+end
+
+---@param entIndex integer
+---@param bone integer
+---@returns Angle
+function system.getAngleForBone(entIndex, bone)
+	local windable = windableInfo.windables[entIndex]
+
+	if windable and windable.bones:Get(bone) then
+		return windable.settings.angles[bone] or angle_zero
+	end
+
+	return angle_zero
+end
+
+---@param entIndex integer
+---@returns BoneArray
+function system.getBones(entIndex)
+	local windable = windableInfo.windables[entIndex]
+
+	if windable then
+		return windable.bones.array
+	end
+
+	return {}
+end
+
+---@param entIndex integer
+---@returns BoneSet
+function system.getBoneSet(entIndex)
+	local windable = windableInfo.windables[entIndex]
+
+	if windable then
+		return windable.bones.set
+	end
+
+	return {}
+end
+
+---@param entIndex integer
+---@param bone integer
+---@param angle Angle
+function system.setAngleForBone(entIndex, bone, angle)
+	local windable = windableInfo.windables[entIndex]
+
+	if windable and windable.bones:Get(bone) then
+		windable.settings.angles[bone] = angle
 	end
 end
 
@@ -85,8 +146,7 @@ end
 function system.isWindedBone(entIndex, bone)
 	local result = false
 
-	local windable = windableInfo.windables:Get(entIndex)
-	---@cast windable ClientWindable?
+	local windable = windableInfo.windables[entIndex]
 	if windable and windable.bones:Get(bone) then
 		result = true
 	end
@@ -97,7 +157,8 @@ end
 ---@param entity Entity
 ---@param bones BoneArray
 ---@param windInfo Wind
-local function applyForce(entity, bones, windInfo)
+---@param settings WindableSettings
+local function applyForce(entity, bones, windInfo, settings)
 	---@type BoneInfo[]
 	local boneInfoArray = {}
 
@@ -109,12 +170,15 @@ local function applyForce(entity, bones, windInfo)
 		-- Rotate bone to face direction of the force vector
 		local _, desiredAngle = helpers.getBoneOffsetsFromVector(entity, bone, direction)
 		local oldAngle = entity:GetManipulateBoneAngles(bone)
+		local angleOffset = settings.angles[bone] or angle_zero
 
 		-- Apply sine on the desired angle to obtain final angle
 		desiredAngle[1] = desiredAngle[1] + magnitude * math.sin(frequency * RealTime())
 		desiredAngle[2] = desiredAngle[2] - magnitude * math.cos(frequency * RealTime())
 
 		desiredAngle = LerpAngle(0.5, oldAngle, desiredAngle)
+
+		desiredAngle:Add(angleOffset)
 
 		table.insert(boneInfoArray, {
 			bone = bone,
@@ -164,18 +228,16 @@ do
 		lastThink = now
 
 		local windables = windableInfo.windables
-		local count = #windables.array
-		for entIndex, _ in ipairs_sparse(windables.set, "bonewind_system", count ~= windableInfo.previousCount) do
-			local windable = windables:Get(entIndex)
-			---@cast windable ClientWindable
-
+		for entIndex, windable in
+			ipairs_sparse(windables, "bonewind_system", windableInfo.count ~= windableInfo.previousCount)
+		do
 			-- Cleanup invalid entities
-			if not IsValid(windable.entity) then
-				windableInfo.windables:Remove(entIndex)
+			if not windable or not IsValid(windable.entity) then
+				removeWindable(entIndex)
 				continue
 			end
 
-			local boneInfo = applyForce(windable.entity, windable.bones.array, windable.wind)
+			local boneInfo = applyForce(windable.entity, windable.bones.array, windable.wind, windable.settings)
 			if
 				not shouldCheckReplication:GetBool()
 				or (shouldCheckReplication:GetBool() and checkReplication(windable.entity))
@@ -183,7 +245,7 @@ do
 				replicate(entIndex, boneInfo)
 			end
 		end
-		windableInfo.previousCount = count
+		windableInfo.previousCount = windableInfo.count
 	end)
 end
 

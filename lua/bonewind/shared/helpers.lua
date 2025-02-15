@@ -170,9 +170,9 @@ function helpers.getDefaultPoseTree(ent)
 		else
 			defaultPose[b] = {
 				oPos = vector_origin,
-				oAng = angle_zero,
+				oAng = angle_zero * 1,
 				lPos = vector_origin,
-				lAng = angle_zero,
+				lAng = angle_zero * 1,
 			}
 		end
 	end
@@ -199,11 +199,11 @@ function helpers.getBoneOffsetsFromVector(entity, child, vector)
 	local pMatrix = entity:GetBoneMatrix(parent)
 
 	if not cMatrix or not pMatrix or not defaultBonePose or #defaultBonePose == 0 then
-		return vector_origin, angle_zero
+		return vector_origin * 1, angle_zero * 1
 	end
 
 	local fPos, fAng =
-		WorldToLocal(cMatrix:GetTranslation(), vector:Angle(), pMatrix:GetTranslation(), pMatrix:GetAngles())
+		WorldToLocal(cMatrix:GetTranslation() + vector, vector:Angle(), pMatrix:GetTranslation(), pMatrix:GetAngles())
 	local dPos = fPos - defaultBonePose[child].lPos
 
 	local m = Matrix()

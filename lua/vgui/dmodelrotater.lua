@@ -26,7 +26,7 @@ AccessorFunc(PANEL, "m_bFirstPerson", "FirstPerson")
 function PANEL:Init()
 	self.mx = 0
 	self.my = 0
-	self.aLookAngle = angle_zero
+	self.aLookAngle = angle_zero * 1
 end
 
 ---@return Vector

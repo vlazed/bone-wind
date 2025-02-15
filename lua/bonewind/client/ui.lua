@@ -1,5 +1,3 @@
-local ui = {}
-
 ---@module "bonewind.shared.helpers"
 local helpers = include("bonewind/shared/helpers.lua")
 
@@ -7,6 +5,10 @@ local getValidModelChildren = helpers.getValidModelChildren
 local getModelName, getModelNameNice, getModelNodeIconPath =
 	helpers.getModelName, helpers.getModelNameNice, helpers.getModelNodeIconPath
 local vectorFromString = helpers.vectorFromString
+
+local ui = {}
+
+local BONE_PRESETS_DIR = "bonewind/presets"
 
 ---Add hooks and model tree pointers
 ---@param parent TreePanel_Node
@@ -229,6 +231,11 @@ function ui.ConstructPanel(cPanel, panelProps, panelState)
 	treePanel:SetSize(treeForm:GetWide(), 125)
 
 	local boneSettings = makeCategory(cPanel, "Bone Tree", "DForm")
+	local bonePresets = vgui.Create("DPresetSaver", cPanel)
+	bonePresets:SetEntity(windable)
+	bonePresets:SetDirectory(BONE_PRESETS_DIR)
+	bonePresets:RefreshDirectory()
+	boneSettings:AddItem(bonePresets)
 
 	local boneTree = vgui.Create("DTreeScroller", cPanel)
 	boneSettings:AddItem(boneTree)
@@ -243,6 +250,7 @@ function ui.ConstructPanel(cPanel, panelProps, panelState)
 	local chainEnabled = boneSettings:CheckBox("#tool.bonewind.chain.enabled", "")
 
 	boneSettings:AddItem(boneEnabled, chainEnabled)
+
 	chainEnabled:Dock(RIGHT)
 	chainEnabled:SetSize(chainEnabled:GetWide() + 25, chainEnabled:GetTall())
 	local childrenEnabled = boneSettings:CheckBox("#tool.bonewind.children.enabled", "")
@@ -250,6 +258,11 @@ function ui.ConstructPanel(cPanel, panelProps, panelState)
 	boneEnabled:SetTooltip("#tool.bonewind.bone.enabled.tooltip")
 	chainEnabled:SetTooltip("#tool.bonewind.chain.enabled.tooltip")
 	childrenEnabled:SetTooltip("#tool.bonewind.children.enabled.tooltip")
+
+	local offsets = makeCategory(boneSettings, "Offsets", "DForm")
+	local pitch = offsets:NumSlider("Pitch", "", -180, 180)
+	local yaw = offsets:NumSlider("Yaw", "", -180, 180)
+	local roll = offsets:NumSlider("Roll", "", -180, 180)
 
 	local windSettings = makeCategory(cPanel, "Wind Settings", "DForm")
 	windSettings:Help("Set the direction of the pointer to set the wind direction")
@@ -287,6 +300,12 @@ function ui.ConstructPanel(cPanel, panelProps, panelState)
 		windStrength = windStrength,
 		windFrequency = windFrequency,
 		updateInterval = updateInterval,
+		angles = {
+			pitch = pitch,
+			yaw = yaw,
+			roll = roll,
+		},
+		bonePresets = bonePresets,
 	}
 end
 
@@ -307,12 +326,32 @@ function ui.HookPanel(panelChildren, panelProps, panelState)
 	local windZSlider = panelChildren.windZSlider
 	local windStrength = panelChildren.windStrength
 	local windFrequency = panelChildren.windFrequency
+	local angles = panelChildren.angles
+	local bonePresets = panelChildren.bonePresets
 
 	local windable = panelState.windable
 	local player = LocalPlayer()
 	boneEnabled:SetEnabled(false)
 	childrenEnabled:SetEnabled(false)
 	chainEnabled:SetEnabled(false)
+
+	local function toggleAngles(checked)
+		for _, angle in pairs(angles) do
+			angle:SetEnabled(checked)
+			angle:SetDark(checked)
+		end
+	end
+
+	---@param bone integer
+	---@param angle Angle
+	local function setAngleSliders(bone, angle)
+		for name, slider in pairs(angles) do
+			---@cast slider AngleSlider
+			slider.ignore = true
+			slider:SetValue(angle[name])
+			slider.ignore = false
+		end
+	end
 
 	---@param checked boolean
 	local function toggleWindSettings(checked)
@@ -324,16 +363,101 @@ function ui.HookPanel(panelChildren, panelProps, panelState)
 		windDirection:SetEnabled(checked)
 	end
 
+	toggleAngles(false)
 	toggleWindSettings(false)
+
+	local function getAngleFromSliders()
+		return Angle(angles.pitch:GetValue(), angles.yaw:GetValue(), angles.roll:GetValue())
+	end
 
 	---@param node TreePanel_Node
 	function treePanel:OnNodeSelected(node)
-		windable = Entity(node.info.entity)
+		local selectedEntity = Entity(node.info.entity)
+		if windable == selectedEntity then
+			return
+		end
+
+		windable = selectedEntity
 		boneEnabled:SetEnabled(false)
 		childrenEnabled:SetEnabled(false)
 		chainEnabled:SetEnabled(false)
 
+		bonePresets:SetEntity(windable)
+		bonePresets:SetText(helpers.getModelNameNice(windable))
 		refreshBoneTree(boneTree, windable)
+	end
+
+	function bonePresets:OnSaveSuccess()
+		notification.AddLegacy("Bone settings saved", NOTIFY_GENERIC, 5)
+	end
+
+	function bonePresets:OnSaveFailure(msg)
+		notification.AddLegacy("Failed to save bone settings: " .. msg, NOTIFY_ERROR, 5)
+	end
+
+	function bonePresets:OnSavePreset()
+		---@type BonePreset
+		local data = {
+			presets = {},
+		}
+
+		local entIndex = windable:EntIndex()
+		for _, bone in ipairs(BoneWind.System.getBones(entIndex)) do
+			local angle = BoneWind.System.getAngleForBone(entIndex, bone)
+			table.insert(data.presets, {
+				boneName = windable:GetBoneName(bone),
+				pitch = angle[1],
+				yaw = angle[2],
+				roll = angle[3],
+			})
+		end
+
+		return data
+	end
+
+	---@param preset BonePreset
+	function bonePresets:OnLoadPreset(preset)
+		local selectedNode = boneTree:GetSelectedItem()
+		if not selectedNode then
+			return
+		end
+
+		---@cast selectedNode BoneTreeNode
+
+		local entIndex = windable:EntIndex()
+		local direction = vectorFromString(windDirectionConVar:GetString())
+		---@cast direction Vector
+		local wind = {
+			direction = direction,
+			magnitude = windStrength:GetValue(),
+			frequency = windFrequency:GetValue(),
+		}
+		local boneSet = BoneWind.System.getBoneSet(entIndex)
+		local bonesToKeep = {}
+
+		-- Attempt to load the preset settings per bone,
+		-- if the bone name exists
+		for _, field in ipairs(preset.presets) do
+			local boneId = windable:LookupBone(field.boneName)
+			if not boneId then
+				continue
+			end
+			bonesToKeep[boneId] = true
+
+			local angle = Angle(field.pitch, field.yaw, field.roll)
+			BoneWind.System.setBone(entIndex, boneId, true, wind)
+			BoneWind.System.setAngleForBone(entIndex, boneId, angle)
+		end
+
+		for bone, _ in pairs(boneSet) do
+			if not bonesToKeep[bone] then
+				BoneWind.System.setBone(entIndex, bone, false)
+			end
+		end
+
+		boneTree:OnNodeSelected(selectedNode)
+
+		notification.AddLegacy("Bone settings loaded", NOTIFY_GENERIC, 5)
 	end
 
 	---@param node BoneTreeNode
@@ -345,10 +469,15 @@ function ui.HookPanel(panelChildren, panelProps, panelState)
 		childrenEnabled:SetEnabled(true)
 		boneEnabled:SetText(Format("%s %s", language.GetPhrase("#tool.bonewind.bone.enabled"), node:GetText()))
 
-		boneEnabled:SetChecked(isBoneEnabled)
-		chainEnabled:SetChecked(isBoneEnabled)
-		childrenEnabled:SetChecked(isBoneEnabled)
+		toggleAngles(isBoneEnabled)
 		toggleWindSettings(isBoneEnabled)
+		boneEnabled:SetChecked(isBoneEnabled)
+		childrenEnabled:SetChecked(isBoneEnabled)
+		chainEnabled:SetChecked(isBoneEnabled)
+
+		local angle = BoneWind.System.getAngleForBone(windable:EntIndex(), node.bone)
+		setAngleSliders(node.bone, angle)
+
 		panelState.selectedBone = node.bone
 	end
 
@@ -368,18 +497,24 @@ function ui.HookPanel(panelChildren, panelProps, panelState)
 
 	---@param bones BoneArray
 	---@param checked boolean
-	local function addBonesToSystem(bones, checked)
+	local function setBonesToSystem(bones, checked)
 		toggleWindSettings(checked)
+		toggleAngles(checked)
 
 		local direction = vectorFromString(windDirectionConVar:GetString())
 		---@cast direction Vector
 
+		local entIndex = windable:EntIndex()
 		for _, bone in ipairs(bones) do
-			BoneWind.System.setBone(windable:EntIndex(), bone, checked, {
-				direction = direction,
-				magnitude = windStrength:GetValue(),
-				frequency = windFrequency:GetValue(),
-			})
+			local wind = checked
+					and {
+						direction = direction,
+						magnitude = windStrength:GetValue(),
+						frequency = windFrequency:GetValue(),
+					}
+				or nil
+			BoneWind.System.setBone(entIndex, bone, checked, wind)
+			BoneWind.System.setAngleForBone(entIndex, bone, getAngleFromSliders())
 		end
 	end
 
@@ -389,7 +524,7 @@ function ui.HookPanel(panelChildren, panelProps, panelState)
 		local selectedNode = boneTree:GetSelectedItem()
 		---@cast selectedNode BoneTreeNode
 
-		addBonesToSystem(bonesFromChildren(selectedNode, {}, false), checked)
+		setBonesToSystem(bonesFromChildren(selectedNode, {}, false), checked)
 	end
 
 	function chainEnabled:OnChange(checked)
@@ -398,7 +533,7 @@ function ui.HookPanel(panelChildren, panelProps, panelState)
 		local selectedNode = boneTree:GetSelectedItem()
 		---@cast selectedNode BoneTreeNode
 
-		addBonesToSystem(bonesFromChildren(selectedNode, {}, true), checked)
+		setBonesToSystem(bonesFromChildren(selectedNode, {}, true), checked)
 	end
 
 	function boneEnabled:OnChange(checked)
@@ -408,7 +543,7 @@ function ui.HookPanel(panelChildren, panelProps, panelState)
 		local selectedNode = boneTree:GetSelectedItem()
 		---@cast selectedNode BoneTreeNode
 
-		addBonesToSystem({ selectedNode.bone }, checked)
+		setBonesToSystem({ selectedNode.bone }, checked)
 	end
 
 	local initialLook = vectorFromString(windDirectionConVar:GetString())
@@ -429,11 +564,32 @@ function ui.HookPanel(panelChildren, panelProps, panelState)
 		---@cast direction Vector
 
 		if selectedNode then
-			BoneWind.System.modBone(windable:EntIndex(), selectedNode.bone, {
+			BoneWind.System.setWindForBone(windable:EntIndex(), selectedNode.bone, {
 				direction = direction,
 				magnitude = windStrength:GetValue(),
 				frequency = windFrequency:GetValue(),
 			})
+		end
+	end
+
+	local function onAngleChange()
+		local selectedNode = boneTree:GetSelectedItem()
+		---@cast selectedNode BoneTreeNode
+
+		if selectedNode then
+			BoneWind.System.setAngleForBone(windable:EntIndex(), selectedNode.bone, getAngleFromSliders())
+		end
+	end
+
+	for _, slider in pairs(angles) do
+		---@cast slider AngleSlider
+
+		function slider:OnValueChanged()
+			if slider.ignore then
+				return
+			end
+
+			onAngleChange()
 		end
 	end
 
